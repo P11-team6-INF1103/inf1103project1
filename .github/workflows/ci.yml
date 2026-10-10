@@ -38,29 +38,14 @@ jobs:
           pip install -r library.txt
           pip install pytest ruff
 
-      # 4. Ruff (advisory in Sprint 1, blocking in Sprint 2)
-      # continue-on-error keeps the pipeline going but still flags the step in the
-      # UI, unlike "|| true", which hides real crashes and shows a green tick.
-      # SPRINT 2: delete the `continue-on-error` line to make this blocking.
-      # TODO: link the issue tracking this change here.
+      # 4. Ruff (blocking)
       - name: Run Ruff Check
-        continue-on-error: true
         run: ruff check .
- 
-      # 5. Pytest
-      # TEMPORARY while tests don't exist yet: tolerates "no tests collected" (5)
-      # and "tests/ not found" (4). Real test failures still fail the job.
-      # Once tests exist, replace this step with the FINAL (blocking) version below.
+
+      # 5. Pytest (blocking: any failure or an empty test run fails the job)
       - name: Run Pytest
-        run: |
-          rc=0
-          pytest tests/ || rc=$?
-          if [ "$rc" -eq 0 ] || [ "$rc" -eq 4 ] || [ "$rc" -eq 5 ]; then exit 0; fi
-          exit "$rc"
-      # FINAL (blocking):
-      # - name: Run Pytest
-      #   run: pytest tests/
- 
+        run: pytest tests/
+
       # 6. Docker build (validation only, no push), with GitHub Actions layer caching
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

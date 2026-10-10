@@ -1,0 +1,17 @@
+# Keep secrets and local clutter out of the image (COPY . . would copy them)
+.env
+.git
+.github
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vscode/
+.idea/
+._*
+.DS_Store
+*.log
+data/*.corrupt-*
+manual_test.py
+tests/

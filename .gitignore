@@ -36,3 +36,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Runtime data
+data/*.corrupt-*

@@ -1,7 +1,7 @@
 import json
 
+import fakes
 import main
-import trial
 
 
 def _incident(**overrides):
@@ -17,9 +17,9 @@ def _incident(**overrides):
 
 
 def _use_fakes(monkeypatch):
-    monkeypatch.setattr(main.ai_manager, "enrich_record", lambda record, history=None: trial.fake_enrich_record(record))
-    monkeypatch.setattr(main.logic_manager, "assess_severity", lambda record, weather=None, history=None: trial.fake_assess_severity(record))
-    monkeypatch.setattr(main, "decide_outcome", trial.fake_decide_outcome)
+    monkeypatch.setattr(main.ai_manager, "enrich_record", lambda record, history=None: fakes.fake_enrich_record(record))
+    monkeypatch.setattr(main.logic_manager, "assess_severity", lambda record, weather=None, history=None: fakes.fake_assess_severity(record))
+    monkeypatch.setattr(main, "decide_outcome", fakes.fake_decide_outcome)
 
 
 def test_start_up_returns_a_list_of_records():

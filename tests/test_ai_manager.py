@@ -51,3 +51,25 @@ def test_enrich_record_stops_early_when_incident_is_invalid():
             mock.patch.object(ai_manager, "generate_incident_review", boom):
         result = ai_manager.enrich_record(_incident("asdf qwerty banana", weather_relevant=True), [])
     assert result["is_valid_incident"] is False and result["invalid_reason"] == "not an incident"
+
+
+def test_gemini_json_asks_once_more_when_the_reply_is_malformed():
+    ai_manager.load_response_cache({})
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    replies = ["not json at all", json.dumps({"ok": True})]
+    with mock.patch.object(ai_manager, "_call_gemini", side_effect=replies) as call:
+        assert ai_manager._gemini_json(object(), "prompt", schema) == {"ok": True}
+    assert call.call_count == 2
+
+
+def test_gemini_json_gives_up_after_one_retry():
+    ai_manager.load_response_cache({})
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    with mock.patch.object(ai_manager, "_call_gemini", return_value=json.dumps({"ok": "yes"})) as call:
+        try:
+            ai_manager._gemini_json(object(), "prompt", schema)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected ValueError")
+    assert call.call_count == 2

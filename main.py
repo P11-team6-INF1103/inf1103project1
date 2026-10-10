@@ -5,21 +5,20 @@ import ai_manager
 import data_manager
 import io_manager
 import logic_manager
-import trial
 
-# Real functions are used wherever a teammate's module already has them.
-# Anything not merged yet falls back to the matching stand-in in fakes.py.
-decide_outcome = getattr(logic_manager, "decide_outcome", trial.fake_decide_outcome)
-save_record = getattr(data_manager, "save_record", trial.fake_save_record)
-SEVERITY_LEVELS = getattr(logic_manager, "SEVERITY_LEVELS", None)
-OUTCOME_ACTIONS = getattr(logic_manager, "OUTCOME_ACTIONS", None)
+decide_outcome = logic_manager.decide_outcome
+save_record = data_manager.save_record
+generate_incident_review = ai_manager.generate_incident_review
+SEVERITY_LEVELS = logic_manager.SEVERITY_LEVELS
+OUTCOME_ACTIONS = logic_manager.OUTCOME_ACTIONS
+
+# Not written yet (Darrel). Until they land, each step passes the record through unchanged.
 derive_context = getattr(logic_manager, "derive_context", dict)
 apply_lighting = getattr(logic_manager, "apply_lighting", dict)
-generate_incident_review = getattr(ai_manager, "generate_incident_review", lambda record: {})
 
 
 # Lennart
-def start_up():
+def start_up() -> list:
     log_path = data_manager.get_log_path()
     if log_path:
         logging.basicConfig(
@@ -38,7 +37,7 @@ def start_up():
 # Lennart
 # Returns None, and saves nothing, when the AI says the text is not a real safety incident.
 # interactive=False (batch, scripts, Docker) never waits on input() after a failed save.
-def process_incident(incident, records, interactive=True):
+def process_incident(incident: dict, records: list, interactive: bool = True) -> dict | None:
     with_context = derive_context(incident)
     with io_manager.show_loading("AI is analysing the incident"):
         enriched = ai_manager.enrich_record(with_context, records)
@@ -79,7 +78,7 @@ def process_incident(incident, records, interactive=True):
 
 # Lennart
 # If the AI rejects the incident, asks whether to enter it again instead of showing a report.
-def log_incident_flow(records):
+def log_incident_flow(records: list) -> dict | None:
     while True:
         incident = io_manager.get_incident_input()
         final_record = process_incident(incident, records)
@@ -92,7 +91,7 @@ def log_incident_flow(records):
 
 
 # Lennart
-def run_batch(path):
+def run_batch(path: str) -> int:
     incidents, problems = io_manager.read_incident_file(path)
     for problem in problems:
         io_manager.display_message(f"Skipped: {problem}")
@@ -111,7 +110,7 @@ def run_batch(path):
 
 
 # Lennart
-def main():
+def main() -> None:
     records = start_up()
     while True:
         choice = io_manager.get_menu_choice()

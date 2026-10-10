@@ -84,11 +84,11 @@ def test_unsaveable_record_returns_false_and_keeps_file():
 
 
 def test_unwritable_location_returns_false_instead_of_crashing():
-    with tempfile.NamedTemporaryFile() as blocker:
-        with mock.patch.dict(os.environ, {"INCIDENT_DATA_DIR": os.path.join(blocker.name, "sub")}):
-            assert dm.save_record({"a": 1}) is False
-            assert dm.save_ai_cache({"k": "v"}) is False
-            assert dm.load_records() == []
+    with tempfile.NamedTemporaryFile() as blocker, \
+            mock.patch.dict(os.environ, {"INCIDENT_DATA_DIR": os.path.join(blocker.name, "sub")}):
+        assert dm.save_record({"a": 1}) is False
+        assert dm.save_ai_cache({"k": "v"}) is False
+        assert dm.load_records() == []
 
 
 def test_roundtrip_filter_and_order():

@@ -1,8 +1,8 @@
 
-import os
-import json
 import hashlib
+import json
 import logging
+import os
 
 import requests
 from dotenv import load_dotenv
@@ -49,19 +49,19 @@ _RESPONSE_CACHE = {}
 
 # Lennart
 
-def load_response_cache(cache):
+def load_response_cache(cache: dict) -> None:
     _RESPONSE_CACHE.clear()
     if isinstance(cache, dict):
         _RESPONSE_CACHE.update(cache)
 
 
-def export_response_cache():
+def export_response_cache() -> dict:
     return dict(_RESPONSE_CACHE)
 
 
-def _cache_key(kind, *parts):
+def _cache_key(kind: str, *parts: str) -> str:
     return kind + ":" + hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
-def _get_gemini_client():
+def _get_gemini_client() -> object | None:
    
     try:
         return genai.Client(http_options={"retry_options": {"attempts": 1}, "timeout": 25000})
@@ -71,7 +71,7 @@ def _get_gemini_client():
 
 
 # Lennart
-def _parse_json_safe(text):
+def _parse_json_safe(text: str) -> object:
    
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -81,7 +81,7 @@ def _parse_json_safe(text):
     return json.loads(cleaned)
 
 
-def _call_gemini(client, prompt, schema):
+def _call_gemini(client: object, prompt: str, schema: dict) -> str:
    
     last_error = None
     for model in GEMINI_MODELS:
@@ -104,7 +104,7 @@ def _call_gemini(client, prompt, schema):
             last_error = error
     raise RuntimeError(f"All Gemini models failed; last error: {last_error}")
 
-def _validate_schema(data, schema, path="response"):
+def _validate_schema(data: object, schema: dict, path: str = "response") -> None:
     type_checks = {
         "object": lambda v: isinstance(v, dict),
         "array": lambda v: isinstance(v, list),
@@ -133,19 +133,35 @@ def _validate_schema(data, schema, path="response"):
             _validate_schema(item, schema["items"], f"{path}[{index}]")
 
 
-def _gemini_json(client, prompt, schema):
+def _gemini_json(client: object, prompt: str, schema: dict) -> object:
     key = _cache_key("gemini", prompt, json.dumps(schema, sort_keys=True))
-    text = _RESPONSE_CACHE.get(key)
-    if text is None:
+    cached = _RESPONSE_CACHE.get(key)
+    if cached is not None:
+        try:
+            parsed = _parse_json_safe(cached)
+            _validate_schema(parsed, schema)
+            return parsed
+        except ValueError:
+            pass
+
+    # A reply that is not valid JSON or fails the schema is asked for once more.
+    last_error = None
+    for _attempt in range(2):
         text = _call_gemini(client, prompt, schema)
-    parsed = _parse_json_safe(text)
-    _validate_schema(parsed, schema)
-    _RESPONSE_CACHE[key] = text
-    return parsed
+        try:
+            parsed = _parse_json_safe(text)
+            _validate_schema(parsed, schema)
+        except ValueError as error:
+            logger.warning("Malformed Gemini reply: %s", error)
+            last_error = error
+            continue
+        _RESPONSE_CACHE[key] = text
+        return parsed
+    raise last_error
 
 
 # Lennart
-def extract_hazard_context_flags(description):
+def extract_hazard_context_flags(description: str) -> dict:
     defaults = {
         "hazard_category": None,
         "injury_severity": "unspecified",
@@ -253,11 +269,11 @@ _WEATHER_KEYWORDS = (
     "thunder", "haze", "hot", "heat", "humid",
 )
 
-def is_weather_relevant(record):
+def is_weather_relevant(record: dict) -> bool:
     description = record.get("description", "").lower()
     return any(keyword in description for keyword in _WEATHER_KEYWORDS)
 
-def call_weather_api(location):
+def call_weather_api(location: str) -> dict | None:
     try:
         response = requests.get(
             "https://api.open-meteo.com/v1/forecast",
@@ -282,7 +298,7 @@ def call_weather_api(location):
         return None
 
 
-def validate_weather_response(response):
+def validate_weather_response(response: object) -> bool:
     if not isinstance(response, dict):
         return False
     condition = response.get("condition")
@@ -292,12 +308,10 @@ def validate_weather_response(response):
         return False
     if not isinstance(temperature_c, (int, float)) or not (-10 <= temperature_c <= 50):
         return False
-    if not isinstance(humidity_pct, (int, float)) or not (0 <= humidity_pct <= 100):
-        return False
-    return True
+    return isinstance(humidity_pct, (int, float)) and 0 <= humidity_pct <= 100
 
 
-def classify_lighting_condition(time_of_day, condition):
+def classify_lighting_condition(time_of_day: str, condition: str | None) -> str:
     levels = ["daylight", "low_light", "dark"]
     base = {"day": 0, "dusk_dawn": 1, "night": 2}.get(time_of_day, 0)
     if condition == "rain":
@@ -305,8 +319,8 @@ def classify_lighting_condition(time_of_day, condition):
     base = min(base, len(levels) - 1)
     return levels[base]
 
-def find_similar_incidents(record):
-    history_records = data_manager.load_records()
+def find_similar_incidents(record: dict, history_records: list | None = None) -> list:
+    history_records = history_records or []
     if not history_records:
         return []
 
@@ -381,7 +395,7 @@ def find_similar_incidents(record):
     return matches
 
 
-def _extract_json_object(text):
+def _extract_json_object(text: str) -> dict | None:
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end <= start:
@@ -416,7 +430,7 @@ WEB_SEARCH_SCHEMA = {
 }
 
 
-def search_web_for_similar_incidents(record):
+def search_web_for_similar_incidents(record: dict) -> dict:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not set in .env")
@@ -492,7 +506,7 @@ def search_web_for_similar_incidents(record):
 
 
 #Ren Xiang
-def generate_incident_review(record):
+def generate_incident_review(record: dict) -> dict:
     """Asks Gemini for after-action review notes: the likely causes of the
     incident and practical steps to prevent it happening again, using
     everything already gathered (AI flags, weather, season, lighting,
@@ -581,7 +595,7 @@ def generate_incident_review(record):
 
 
 # Lennart
-def enrich_record(record, history_records=None):
+def enrich_record(record: dict, history_records: list | None = None) -> dict:
     enriched = dict(record)
 
     # The mandatory AI call runs first. If it says this is not a real safety incident we stop

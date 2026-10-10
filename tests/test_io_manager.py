@@ -89,7 +89,7 @@ def test_menu_rejects_invalid_choice(monkeypatch, capsys):
 
 def test_menu_treats_ctrl_c_and_closed_input_as_exit(monkeypatch, capsys):
     for interrupt in (EOFError, KeyboardInterrupt):
-        def stop(prompt=""):
+        def stop(prompt="", interrupt=interrupt):
             raise interrupt
         monkeypatch.setattr("builtins.input", stop)
         assert io.get_menu_choice() == "4"
@@ -126,7 +126,7 @@ def test_report_shows_sections_only_when_they_have_content(capsys):
     io.display_outcome(_record(review_likely_causes=["Wet floor"]), {2: ("Minor", "Record it.")})
     out = capsys.readouterr().out
     assert "SEVERITY AND ACTION" in out and "WHY IT LIKELY HAPPENED" in out
-    assert "WEATHER AT THE TIME" not in out and "HOW TO PREVENT IT" not in out
+    assert "CURRENT WEATHER" not in out and "HOW TO PREVENT IT" not in out
 
 
 def test_query_results_display(capsys):

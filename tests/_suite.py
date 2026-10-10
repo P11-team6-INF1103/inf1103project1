@@ -36,9 +36,9 @@ def suite_from(namespace):
 
 @contextlib.contextmanager
 def temp_data_dir():
-    with tempfile.TemporaryDirectory() as folder:
-        with mock.patch.dict(os.environ, {"INCIDENT_DATA_DIR": folder}):
-            yield folder
+    with tempfile.TemporaryDirectory() as folder, \
+            mock.patch.dict(os.environ, {"INCIDENT_DATA_DIR": folder}):
+        yield folder
 
 
 @contextlib.contextmanager
