@@ -123,3 +123,13 @@ def query_by_location(location, days, as_of=None, records=None):
             })
     matches.sort(key=lambda r: r["timestamp"], reverse=True)
     return matches
+
+def list_locations(records=None):
+    counts = {}
+    for record in (load_records() if records is None else records):
+        if not isinstance(record, dict):
+            continue
+        location = record.get("location")
+        if isinstance(location, str) and location.strip():
+            counts[location] = counts.get(location, 0) + 1
+    return sorted(counts.items(), key=lambda item: (item[0].lower(), item[0]))

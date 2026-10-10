@@ -170,13 +170,38 @@ def display_message(text):
     print(text)
 
 
+def _choose_location(known_locations):
+    if not known_locations:
+        print("No incidents have been saved yet, so there are no locations to list.")
+        return None
+    print("Saved locations:")
+    for number, (location, count) in enumerate(known_locations, start=1):
+        noun = "incident" if count == 1 else "incidents"
+        print(f"  {number}. {location} ({count} {noun})")
+    while True:
+        picked = input("Choose a number (or press Enter to go back): ").strip()
+        if picked == "":
+            return None
+        if picked.isdigit() and 1 <= int(picked) <= len(known_locations):
+            return known_locations[int(picked) - 1][0]
+        print(f"Please enter a number from 1 to {len(known_locations)}.")
+
+
 # Location query interface (menu option 3)
-def get_location_query():
-    prompt = "Location to search (or press Enter to go back to the menu): "
+def get_location_query(known_locations=None):
+    if known_locations is None:
+        prompt = "Location to search (or press Enter to go back to the menu): "
+    else:
+        prompt = ("Location to search, type 'list' to pick from saved locations "
+                  "(or press Enter to go back to the menu): ")
     while True:
         location = _sanitise(input(prompt))
         if location == "":
             return None
+        if known_locations is not None and location.lower() == "list":
+            location = _choose_location(known_locations)
+            if location is None:
+                return None
         error = _check_location(location)
         if error is None:
             break
@@ -275,6 +300,37 @@ def _field(label, value, width, indent=2, label_width=_LABEL_WIDTH):
         ))
 
 
+# Plain-English text for each *_error field a record can carry. The raw
+# error text (HTTP codes, model names) goes to the log, not to the user.
+_PROBLEM_MESSAGES = (
+    ("context_flags_error", "Hazard details (type, injury, height, PPE) could not be read "
+     "automatically, so default values were used. Please check the severity score manually."),
+    ("assessment_error", "The AI service is unavailable, so this incident was not scored. "
+     "Please assess it manually and try again later."),
+    ("enrichment_error", "Current weather could not be retrieved, so weather was not "
+     "factored into this report."),
+    ("web_search_error", "We couldn't look up similar incidents or industry information "
+     "online right now. The rest of this report is unaffected."),
+    ("similar_incidents_error", "We couldn't compare this with earlier incidents on our "
+     "own sites right now."),
+    ("review_error", "Causes and prevention advice couldn't be generated. Please discuss "
+     "prevention steps with your safety officer."),
+)
+_ALL_AI_DOWN_MESSAGE = (
+    "AI services are currently unavailable (check your internet connection or API keys). "
+    "This record was saved, but needs manual review."
+)
+_KEY_HINT = "An API key looks missing: check GEMINI_API_KEY and GROQ_API_KEY in the .env file."
+
+def _friendly_problems(record):
+    problems = [text for field, text in _PROBLEM_MESSAGES if record.get(field)]
+    if all(record.get(f) for f in ("context_flags_error", "web_search_error", "review_error")):
+        problems.insert(0, _ALL_AI_DOWN_MESSAGE)
+    raw = " ".join(str(record.get(field) or "") for field, _ in _PROBLEM_MESSAGES)
+    if "API_KEY" in raw:
+        problems.append(_KEY_HINT)
+    return problems
+
 # Print incident report
 def _print_incident_report(record, severity_levels=None, outcome_actions=None, number=None):
     severity_levels = severity_levels or {}
@@ -362,7 +418,7 @@ def _print_incident_report(record, severity_levels=None, outcome_actions=None, n
         _field("", record["review_prevention_actions"], width, label_width=0)
 
     # --- Anything the AI couldn't do, in one place ---
-    problems = []
+    problems = _friendly_problems(record)
     if record.get("assessment_error"):
         problems.append(f"Assessment: {record['assessment_error']}")
     if record.get("web_search_error"):
